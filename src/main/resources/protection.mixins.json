@@ -1,0 +1,7 @@
+{
+  "required": true,
+  "package": "com.fraxxz.protection.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "client": ["CameraMixin", "KeyboardInputMixin", "MinecraftClientMixin"],
+  "injectors": { "defaultRequire": 1 }
+}

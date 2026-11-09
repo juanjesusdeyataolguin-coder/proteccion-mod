@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "protection",
+  "version": "${version}",
+  "name": "Protección de áreas",
+  "description": "Mineral de protección: marca un área con cámara libre y nadie (ni admins) puede tocarla.",
+  "authors": ["FRAXXZ"],
+  "environment": "*",
+  "entrypoints": {
+    "main": ["com.fraxxz.protection.ProtectionMod"],
+    "client": ["com.fraxxz.protection.ProtectionClient"]
+  },
+  "mixins": [{ "config": "protection.mixins.json", "environment": "client" }],
+  "depends": { "fabricloader": ">=0.15.0", "minecraft": "1.20.1", "java": ">=17", "fabric-api": "*" }
+}
