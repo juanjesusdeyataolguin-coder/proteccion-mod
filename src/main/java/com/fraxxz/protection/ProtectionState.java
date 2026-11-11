@@ -1,6 +1,9 @@
 package com.fraxxz.protection;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.UUID;
 import java.util.List;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtElement;
@@ -24,8 +27,14 @@ public class ProtectionState extends PersistentState {
         for (int i = 0; i < list.size(); i++) {
             NbtCompound c = list.getCompound(i);
             int[] a = c.getIntArray("min"), b = c.getIntArray("max");
+            Map<UUID, String> tr = new LinkedHashMap<>();
+            NbtList tl = c.getList("t", NbtElement.COMPOUND_TYPE);
+            for (int j = 0; j < tl.size(); j++) {
+                NbtCompound e = tl.getCompound(j);
+                tr.put(e.getUuid("id"), e.getString("name"));
+            }
             st.regions.add(new Region(c.getUuid("owner"), c.getString("name"), new Identifier(c.getString("dim")),
-                new BlockPos(a[0], a[1], a[2]), new BlockPos(b[0], b[1], b[2])));
+                new BlockPos(a[0], a[1], a[2]), new BlockPos(b[0], b[1], b[2]), tr));
         }
         return st;
     }
@@ -40,6 +49,14 @@ public class ProtectionState extends PersistentState {
             c.putString("dim", r.dim().toString());
             c.putIntArray("min", new int[]{r.min().getX(), r.min().getY(), r.min().getZ()});
             c.putIntArray("max", new int[]{r.max().getX(), r.max().getY(), r.max().getZ()});
+            NbtList tl = new NbtList();
+            for (Map.Entry<UUID, String> e : r.trusted().entrySet()) {
+                NbtCompound x = new NbtCompound();
+                x.putUuid("id", e.getKey());
+                x.putString("name", e.getValue());
+                tl.add(x);
+            }
+            c.put("t", tl);
             list.add(c);
         }
         nbt.put("r", list);
@@ -48,6 +65,10 @@ public class ProtectionState extends PersistentState {
 
     public Region at(Identifier dim, BlockPos pos) {
         for (Region r : regions) if (r.contains(dim, pos)) return r;
+        return null;
+    }
+    public Region owned(Identifier dim, BlockPos pos, UUID id) {
+        for (Region r : regions) if (r.contains(dim, pos) && r.owner().equals(id)) return r;
         return null;
     }
     public void add(Region r) { regions.add(r); markDirty(); }

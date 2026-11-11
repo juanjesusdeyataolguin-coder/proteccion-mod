@@ -2,6 +2,7 @@ package com.fraxxz.protection;
 
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.minecraft.client.option.KeyBinding;
@@ -9,6 +10,7 @@ import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.render.VertexConsumer;
 import net.minecraft.client.render.WorldRenderer;
 import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.text.Text;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 import org.lwjgl.glfw.GLFW;
@@ -27,6 +29,12 @@ public class ProtectionClient implements ClientModInitializer {
             }
             FreecamClient.tick(c);
         });
+
+        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> client.execute(() -> {
+            client.inGameHud.setTitleTicks(10, 70, 20);
+            client.inGameHud.setSubtitle(Text.literal("§ePROTECCIÓN DE ÁREAS"));
+            client.inGameHud.setTitle(Text.literal("§6MOD BY FRAXXZ"));
+        }));
 
         WorldRenderEvents.AFTER_TRANSLUCENT.register(ctx -> {
             if (FreecamClient.p1 == null && FreecamClient.p2 == null) return;

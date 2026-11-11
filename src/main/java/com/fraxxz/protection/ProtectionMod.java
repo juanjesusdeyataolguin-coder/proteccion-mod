@@ -1,5 +1,6 @@
 package com.fraxxz.protection;
 
+import java.util.LinkedHashMap;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.biome.v1.BiomeModifications;
 import net.fabricmc.fabric.api.biome.v1.BiomeSelectors;
@@ -36,6 +37,7 @@ public class ProtectionMod implements ModInitializer {
     public static final String ID = "protection";
     public static final Identifier CLAIM = new Identifier(ID, "claim");
     public static final Identifier REMOVE = new Identifier(ID, "remove");
+    public static final Identifier TRUST = new Identifier(ID, "trust");
     public static final int MAX_SIDE = 128;
 
     public static final Block PROTECTION_ORE = new ExperienceDroppingBlock(
@@ -57,6 +59,11 @@ public class ProtectionMod implements ModInitializer {
             BlockPos a = buf.readBlockPos(), b = buf.readBlockPos();
             server.execute(() -> claim(player, a, b));
         });
+        ServerPlayNetworking.registerGlobalReceiver(TRUST, (server, player, handler, buf, sender) -> {
+            String name = buf.readString(32);
+            boolean add = buf.readBoolean();
+            server.execute(() -> trust(player, name, add));
+        });
         ServerPlayNetworking.registerGlobalReceiver(REMOVE, (server, player, handler, buf, sender) ->
             server.execute(() -> remove(player)));
 
@@ -75,7 +82,7 @@ public class ProtectionMod implements ModInitializer {
     static boolean denied(PlayerEntity p, World w, BlockPos pos) {
         if (w.isClient || !(w instanceof ServerWorld sw)) return false;
         Region r = ProtectionState.get(sw.getServer()).at(w.getRegistryKey().getValue(), pos);
-        if (r == null || r.owner().equals(p.getUuid())) return false;
+        if (r == null || r.allows(p.getUuid())) return false;
         p.sendMessage(Text.literal("§cÁrea protegida por " + r.ownerName()), true);
         return true;
     }
@@ -89,12 +96,7 @@ public class ProtectionMod implements ModInitializer {
         }
         ProtectionState st = ProtectionState.get(p.server);
         Identifier dim = p.getWorld().getRegistryKey().getValue();
-        for (Region r : st.regions) {
-            if (r.dim().equals(dim) && !r.owner().equals(p.getUuid()) && r.intersects(min, max)) {
-                p.sendMessage(Text.literal("§cEl área se cruza con la de " + r.ownerName()), false);
-                return;
-            }
-        }
+        // Las áreas de distintos dueños SÍ se pueden cruzar; en la zona cruzada manda el área más antigua.
         if (!p.isCreative()) {
             ItemStack found = null;
             for (int i = 0; i < p.getInventory().size(); i++) {
@@ -107,18 +109,46 @@ public class ProtectionMod implements ModInitializer {
             }
             found.decrement(1);
         }
-        st.add(new Region(p.getUuid(), p.getName().getString(), dim, min, max));
+        st.add(new Region(p.getUuid(), p.getName().getString(), dim, min, max, new LinkedHashMap<>()));
         p.sendMessage(Text.literal("§aÁrea protegida"), false);
     }
 
     static void remove(ServerPlayerEntity p) {
         ProtectionState st = ProtectionState.get(p.server);
-        Region r = st.at(p.getWorld().getRegistryKey().getValue(), p.getBlockPos());
-        if (r != null && r.owner().equals(p.getUuid())) {
+        Region r = st.owned(p.getWorld().getRegistryKey().getValue(), p.getBlockPos(), p.getUuid());
+        if (r != null) {
             st.remove(r);
             p.sendMessage(Text.literal("§eÁrea eliminada"), false);
         } else {
             p.sendMessage(Text.literal("§cNo estás dentro de un área tuya"), false);
+        }
+    }
+
+    static void trust(ServerPlayerEntity p, String name, boolean add) {
+        ProtectionState st = ProtectionState.get(p.server);
+        Region r = st.owned(p.getWorld().getRegistryKey().getValue(), p.getBlockPos(), p.getUuid());
+        if (r == null) {
+            p.sendMessage(Text.literal("§cPárate dentro de un área tuya para dar o quitar permisos"), false);
+            return;
+        }
+        if (add) {
+            ServerPlayerEntity t = p.server.getPlayerManager().getPlayer(name);
+            if (t == null) {
+                p.sendMessage(Text.literal("§c" + name + " no está conectado"), false);
+                return;
+            }
+            if (t.getUuid().equals(p.getUuid())) {
+                p.sendMessage(Text.literal("§cYa eres el dueño"), false);
+                return;
+            }
+            r.trusted().put(t.getUuid(), t.getName().getString());
+            st.markDirty();
+            p.sendMessage(Text.literal("§aPermiso dado a " + t.getName().getString()), false);
+            t.sendMessage(Text.literal("§a" + p.getName().getString() + " te dio permiso en su área"), false);
+        } else {
+            boolean removed = r.trusted().values().removeIf(n -> n.equalsIgnoreCase(name));
+            st.markDirty();
+            p.sendMessage(Text.literal(removed ? "§ePermiso quitado a " + name : "§c" + name + " no tenía permiso"), false);
         }
     }
 }
